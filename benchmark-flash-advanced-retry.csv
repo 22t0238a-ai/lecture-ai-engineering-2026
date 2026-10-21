@@ -1,0 +1,2 @@
+model,question,trial,elapsed_seconds,request_seconds,retry_wait_seconds,retries,input_tokens,output_tokens,status
+gemini-3.5-flash,上級: GPUメモリが限られた環境でFAQモデルを追加学習します。LoRAとQLoRAを比較し、ランクrの選び方、メモリ・学習速度・出力品質のトレードオフを説明したうえで、適切な方法を選ぶための評価実験を提案してください。,1,14.085,14.085,0.000,0,,,API_ERROR_503
