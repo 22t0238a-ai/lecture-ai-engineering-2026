@@ -19,6 +19,8 @@ RAG_GRAPH = ROOT / "data/rag_data/graph.json"
 RAG_DB = Path(os.getenv("AIE_RAG_DB", str(ROOT / "data/rag_data/index.sqlite3")))
 RAG_DOCUMENT_IDS = ("lec01-main", "lec02-main", "lec03-main")
 RAG_TOP_K = 2
+# 宿題（実装）: 検索結果に付ける前後のページ数。0 なら付けない（元の動き）
+RAG_NEIGHBORS = int(os.getenv("AIE_RAG_NEIGHBORS", "0"))
 GRAPH_START_K = 3
 GRAPH_HOPS = 2
 GRAPH_MAX_RESULTS = 10

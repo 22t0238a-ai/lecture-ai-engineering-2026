@@ -17,7 +17,7 @@ import sqlite_vec
 from app.config import (
     EMBEDDING_DIMENSIONS, EMBEDDING_MAX_TOKENS, EMBEDDING_MODEL,
     RAG_DB, RAG_DOCUMENT_IDS, RAG_SOURCE, RAG_TOP_K, RAG_TREE, get_api_key,
-    RAG_GRAPH, GRAPH_START_K, GRAPH_HOPS, GRAPH_MAX_RESULTS,
+    RAG_GRAPH, GRAPH_START_K, GRAPH_HOPS, GRAPH_MAX_RESULTS, RAG_NEIGHBORS,
 )
 
 
@@ -138,6 +138,40 @@ def search(query: str) -> list[dict]:
         return [dict(row) for row in rows]
 
 
+def add_neighbors(hits: list[dict], width: int = RAG_NEIGHBORS) -> list[dict]:
+    """検索で見つかった各ページに、同じ資料の前後 width ページの本文を付ける。
+
+    - 別の資料（講義）はまたがない
+    - 同じページは 1 回だけ返す（検索で見つかったページ同士が隣り合っていても重複しない）
+    - 検索で見つかったページは role="hit"、付け足したページは role="neighbor" と neighbor_of を持つ
+    - 並びは、検索の順位が高いページの周りから、資料の中の順番どおり
+    """
+    if width <= 0:
+        return hits
+    pages = load_pages(RAG_SOURCE)  # 資料→章→ページの順に並んでいる
+    position = {page["page_id"]: i for i, page in enumerate(pages)}
+    hit_by_id = {hit["page_id"]: hit for hit in hits}
+    results, seen = [], set()
+    for hit in hits:
+        i = position.get(hit["page_id"])
+        window = [i] if i is None else range(i - width, i + width + 1)
+        for j in window:
+            if j is None:
+                page_id, page = hit["page_id"], hit
+            elif 0 <= j < len(pages) and pages[j]["document_id"] == hit["document_id"]:
+                page_id, page = pages[j]["page_id"], pages[j]
+            else:
+                continue
+            if page_id in seen:
+                continue
+            seen.add(page_id)
+            if page_id in hit_by_id:
+                results.append({**hit_by_id[page_id], "role": "hit"})
+            else:
+                results.append({**page, "role": "neighbor", "neighbor_of": hit["page_id"]})
+    return results
+
+
 def search_graph(query: str) -> dict:
     """ベクトル検索を入口に、前後ページと共通用語で候補を広げる。"""
     pages = {page["page_id"]: page for page in load_pages(RAG_SOURCE)}
@@ -202,8 +236,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="エージェントを使わず、講義資料の検索だけを実行する")
     parser.add_argument("query", help="調べたい内容")
     args = parser.parse_args()
-    for i, result in enumerate(search(args.query), 1):
-        print(f"\n{'=' * 60}\n検索結果 {i}\n{'=' * 60}")
+    for i, result in enumerate(add_neighbors(search(args.query)), 1):
+        role = "" if "role" not in result else (
+            "（検索でヒット）" if result["role"] == "hit" else f"（{result['neighbor_of']} の前後ページ）")
+        print(f"\n{'=' * 60}\n検索結果 {i}{role}\n{'=' * 60}")
         print(f"講義: {result['document_title']}")
         print(f"章: {result['section']}")
         print(f"タイトル: {result['title']}")
